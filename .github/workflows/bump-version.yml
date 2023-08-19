@@ -1,0 +1,43 @@
+name: Bump version
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+
+  bump-version:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get latest Expose version
+        id: expose
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          owner: beyondcode
+          repo: expose
+          excludes: prerelease, draft
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}
+
+      - name: Bump version
+        id: bump-version
+        continue-on-error: true
+        run: |
+          MESSAGE=$(./bump-version.sh "${{ steps.expose.outputs.release }}")
+          BUMPED=$(if [ $? -eq 0 ]; then echo 1; else echo 0; fi)
+          echo "message=${MESSAGE}" >> $GITHUB_OUTPUT
+          echo "bumped=${BUMPED}" >> $GITHUB_OUTPUT
+
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        if: steps.bump-version.outputs.bumped == 1
+        with:
+          default_author: github_actions
+          message: ${{ steps.bump-version.outputs.message }}
+          add: versions.json
