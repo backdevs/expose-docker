@@ -1,0 +1,64 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'versions.json'
+      - 'Dockerfile'
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: "backdevs/expose"
+
+jobs:
+
+  build-and-push:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get the latest version
+        id: latest-version
+        run: echo "version=$(jq -r '.latest' versions.json)" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.latest-version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.latest-version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.latest-version.outputs.version }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-to: type=gha,mode=max
+          cache-from: type=gha
