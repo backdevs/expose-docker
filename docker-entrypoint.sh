@@ -16,6 +16,9 @@ fi
 
 ## check if the first argument passed in is expose and if it's the only one
 if [ "$#" = 1 ] && [ "$1" = "expose" ]; then
+  if [ -n "${SHARE}" ]; then
+      set -- "$@" "${SHARE}"
+    fi
   if [ -n "${SUBDOMAIN}" ]; then
     set -- "$@" "--subdomain=${SUBDOMAIN}"
   fi
